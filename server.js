@@ -37,7 +37,7 @@ const authenticateToken = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const [user] = await pool.query('SELECT id FROM Profesores WHERE id = ?', [decoded.id]);
-    if (!user) return res.status(403).json({ error: 'Usuario no válido' });
+    if (!user.length) return res.status(403).json({ error: 'Usuario no válido' });
     req.user = decoded;
     next();
   } catch (err) {
@@ -45,7 +45,7 @@ const authenticateToken = async (req, res, next) => {
   }
 };
 
-// Controladores
+// Controladores login
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -61,7 +61,11 @@ const login = async (req, res) => {
       { expiresIn: '8h' }
     );
 
-    res.json({ token, nombre: `${profesor.nombre} ${profesor.apellido}` });
+    res.json({ 
+      token, 
+      nombre: `${profesor.nombre} ${profesor.apellido}`,
+      id: profesor.id
+    });
   } catch (err) {
     console.error('Error en login:', err);
     res.status(500).json({ error: 'Error en el servidor' });
@@ -105,19 +109,26 @@ const obtenerAlumnosPorGrado = async (req, res) => {
   }
 };
 
+const verifyToken = (req, res) => {
+  res.json({ valid: true, user: req.user });
+};
+
 // Rutas
 app.post('/auth/login', login);
+app.get('/auth/verify', authenticateToken, verifyToken);
 app.post('/asistencia/marcar', authenticateToken, registrarAsistencia);
 app.get('/alumnos/grado/:grado_id', authenticateToken, obtenerAlumnosPorGrado);
 
-// Ruta para registrar asistencia 
-app.post('/asistencia/marcar', authenticateToken, registrarAsistencia);
+// Ruta de prueba
+app.get('/', (req, res) => {
+  res.send('API de Asistencia Escolar funcionando');
+});
 
-// Ruta para consultar asistencia 
-app.get('/asistencia', authenticateToken, (req, res) => {
- 
-  res.json({ data: [] }); 
+// Manejador de errores
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Algo salió mal!' });
 });
 
 // Iniciar servidor
-app.listen(PORT, () => console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`));     
+app.listen(PORT, () => console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`));
